@@ -1,9 +1,6 @@
 package org.example;
 
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.File;
@@ -33,7 +30,7 @@ public class DirectoryToExcel {
                 Sheet sheet = workbook.createSheet("Directory Tree");
 
                 // ディレクトリのツリー構造を再帰的にエクセルに書き込む
-                writeDirectoryToExcel(new File(directoryPath), sheet, 0, 0, directoryPath);
+                writeDirectoryToExcel(new File(directoryPath), sheet, 0, 0, directoryPath, workbook);
 
                 // エクセルファイルに書き込む
                 try (FileOutputStream outputStream = new FileOutputStream(outputDir + File.separator + "directory_tree.xlsx")) {
@@ -52,7 +49,7 @@ public class DirectoryToExcel {
         }
     }
 
-    private static int writeDirectoryToExcel(File directory, Sheet sheet, int rowNum, int colNum, String baseDir) {
+    private static int writeDirectoryToExcel(File directory, Sheet sheet, int rowNum, int colNum, String baseDir, Workbook workbook) {
         if (!directory.isDirectory()) {
             return rowNum;
         }
@@ -63,7 +60,7 @@ public class DirectoryToExcel {
 
         for (File file : directory.listFiles()) {
             if (file.isDirectory()) {
-                rowNum = writeDirectoryToExcel(file, sheet, rowNum, colNum + 1, baseDir);
+                rowNum = writeDirectoryToExcel(file, sheet, rowNum, colNum + 1, baseDir, workbook);
             } else {
                 Row fileRow = sheet.createRow(rowNum++);
                 Cell fileCell = fileRow.createCell(colNum + 1);
@@ -73,6 +70,14 @@ public class DirectoryToExcel {
                 String relativePath = getRelativePath(baseDir, file.getAbsolutePath());
                 String linkFormula = "HYPERLINK(\"" + relativePath + "\",\"" + file.getName() + "\")";
                 fileCell.setCellFormula(linkFormula);
+
+                // リンクのテキストを青色にし、下線を追加する
+                CellStyle hyperlinkStyle = workbook.createCellStyle();
+                Font font = workbook.createFont();
+                font.setColor(IndexedColors.BLUE.getIndex());
+                font.setUnderline(Font.U_SINGLE);
+                hyperlinkStyle.setFont(font);
+                fileCell.setCellStyle(hyperlinkStyle);
             }
         }
 

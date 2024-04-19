@@ -1,7 +1,9 @@
 package org.example;
 
-import org.apache.poi.common.usermodel.HyperlinkType;
-import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.File;
@@ -9,7 +11,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
-import java.net.URISyntaxException;
 
 public class DirectoryToExcel {
 
@@ -32,7 +33,7 @@ public class DirectoryToExcel {
                 Sheet sheet = workbook.createSheet("Directory Tree");
 
                 // ディレクトリのツリー構造を再帰的にエクセルに書き込む
-                writeDirectoryToExcel(new File(directoryPath), sheet, 0, 0);
+                writeDirectoryToExcel(new File(directoryPath), sheet, 0, 0, directoryPath);
 
                 // エクセルファイルに書き込む
                 try (FileOutputStream outputStream = new FileOutputStream(outputDir + File.separator + "directory_tree.xlsx")) {
@@ -51,7 +52,7 @@ public class DirectoryToExcel {
         }
     }
 
-    private static int writeDirectoryToExcel(File directory, Sheet sheet, int rowNum, int colNum) {
+    private static int writeDirectoryToExcel(File directory, Sheet sheet, int rowNum, int colNum, String baseDir) {
         if (!directory.isDirectory()) {
             return rowNum;
         }
@@ -62,20 +63,33 @@ public class DirectoryToExcel {
 
         for (File file : directory.listFiles()) {
             if (file.isDirectory()) {
-                rowNum = writeDirectoryToExcel(file, sheet, rowNum, colNum + 1);
+                rowNum = writeDirectoryToExcel(file, sheet, rowNum, colNum + 1, baseDir);
             } else {
                 Row fileRow = sheet.createRow(rowNum++);
                 Cell fileCell = fileRow.createCell(colNum + 1);
                 fileCell.setCellValue(file.getName());
 
                 // ファイルの相対パスをURIとして解釈可能な形式に変換してからリンクとして追加する
-                URI uri = file.toURI();
-                Hyperlink link = sheet.getWorkbook().getCreationHelper().createHyperlink(HyperlinkType.FILE);
-                link.setAddress(uri.toString());
-                fileCell.setHyperlink(link);
+                String relativePath = getRelativePath(baseDir, file.getAbsolutePath());
+                String linkFormula = "HYPERLINK(\"" + relativePath + "\",\"" + file.getName() + "\")";
+                fileCell.setCellFormula(linkFormula);
             }
         }
 
         return rowNum;
+    }
+
+    private static String getRelativePath(String baseDir, String filePath) {
+        File base = new File(baseDir);
+        File file = new File(filePath);
+
+        try {
+            URI baseUri = base.toURI();
+            URI fileUri = file.toURI();
+            return baseUri.relativize(fileUri).getPath();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
     }
 }

@@ -1,0 +1,8 @@
+excludeDirectoryPatterns:
+  - "tmp.*"
+  - "temp.*"
+
+excludeFilePatterns:
+  - ".*\\.xlsx"
+  - ".*\\.temp"
+  - .*xlsx

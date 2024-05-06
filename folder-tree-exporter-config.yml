@@ -1,8 +1,14 @@
-excludeDirectoryPatterns:
-  - "tmp.*"
-  - "temp.*"
+# ファイル拡張子フィルター
+fileExtensionFilters:
+  - xlsx
 
+# 除外するディレクトリパターン
+excludeDirectoryPatterns:
+#  - "tmp.*"
+#  - "temp.*"
+
+# 除外するファイルパターン
 excludeFilePatterns:
-  - ".*\\.xlsx"
-  - ".*\\.temp"
-  - .*xlsx
+#  - ".*\\.xlsx"
+#  - ".*\\.temp"
+#  - .*xlsx

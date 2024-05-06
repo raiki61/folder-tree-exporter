@@ -67,6 +67,15 @@ public class DirectoryToExcel {
         return false;
     }
 
+    private static String getFileExtension(File file) {
+        String name = file.getName();
+        int lastIndexOf = name.lastIndexOf(".");
+        if (lastIndexOf == -1) {
+            return ""; // 拡張子がない場合は空文字を返す
+        }
+        return name.substring(lastIndexOf + 1);
+    }
+
     @Override
     protected void finalize() throws Throwable {
         // ログファイルをクローズする
@@ -102,37 +111,58 @@ public class DirectoryToExcel {
             return rowNum;
         }
 
+        boolean hasFileWithSpecifiedExtension = false;
+        for (File file : directory.listFiles()) {
+            if (config != null && shouldExclude(file, config.getExcludeDirectoryPatterns(), config.getExcludeFilePatterns())) {
+                continue;
+            }
+
+            if (file.isFile()) {
+                String extension = getFileExtension(file);
+                if (config != null && config.getFileExtensionFilters().contains(extension)) {
+                    hasFileWithSpecifiedExtension = true;
+                }
+            } else if (file.isDirectory()) {
+                int subRowNum = writeDirectoryToExcel(file, sheet, rowNum, colNum + 1, baseDir, workbook);
+                if (subRowNum > rowNum) {
+                    hasFileWithSpecifiedExtension = true;
+                }
+            }
+        }
+
+        if (!hasFileWithSpecifiedExtension) {
+            return rowNum;
+        }
+
         Row row = sheet.createRow(rowNum++);
         Cell cell = row.createCell(colNum);
         cell.setCellValue(directory.getName());
 
         for (File file : directory.listFiles()) {
-
             if (config != null && shouldExclude(file, config.getExcludeDirectoryPatterns(), config.getExcludeFilePatterns())) {
                 continue;
             }
 
             if (file.isDirectory()) {
-
                 rowNum = writeDirectoryToExcel(file, sheet, rowNum, colNum + 1, baseDir, workbook);
             } else {
+                String extension = getFileExtension(file);
+                if (config != null && config.getFileExtensionFilters().contains(extension)) {
+                    Row fileRow = sheet.createRow(rowNum++);
+                    Cell fileCell = fileRow.createCell(colNum + 1);
+                    fileCell.setCellValue(file.getName());
 
-                Row fileRow = sheet.createRow(rowNum++);
-                Cell fileCell = fileRow.createCell(colNum + 1);
-                fileCell.setCellValue(file.getName());
+                    String relativePath = getRelativePath(baseDir, file.getAbsolutePath());
+                    String linkFormula = "HYPERLINK(\"" + relativePath + "\",\"" + file.getName() + "\")";
+                    fileCell.setCellFormula(linkFormula);
 
-                // ファイルの相対パスをURIとして解釈可能な形式に変換してからリンクとして追加する
-                String relativePath = getRelativePath(baseDir, file.getAbsolutePath());
-                String linkFormula = "HYPERLINK(\"" + relativePath + "\",\"" + file.getName() + "\")";
-                fileCell.setCellFormula(linkFormula);
-
-                // リンクのテキストを青色にし、下線を追加する
-                CellStyle hyperlinkStyle = workbook.createCellStyle();
-                Font font = workbook.createFont();
-                font.setColor(IndexedColors.BLUE.getIndex());
-                font.setUnderline(Font.U_SINGLE);
-                hyperlinkStyle.setFont(font);
-                fileCell.setCellStyle(hyperlinkStyle);
+                    CellStyle hyperlinkStyle = workbook.createCellStyle();
+                    Font font = workbook.createFont();
+                    font.setColor(IndexedColors.BLUE.getIndex());
+                    font.setUnderline(Font.U_SINGLE);
+                    hyperlinkStyle.setFont(font);
+                    fileCell.setCellStyle(hyperlinkStyle);
+                }
             }
         }
 

@@ -9,7 +9,9 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class DirectoryToExcel {
 
@@ -23,6 +25,7 @@ public class DirectoryToExcel {
             this.logStream = new PrintStream(Files.newOutputStream(logFile.toPath()));
             System.setOut(this.logStream);
 
+            this.config = new ConfigLoader.Config(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
             if (new File(yamlConfigPath).exists()) {
                 this.config = ConfigLoader.loadConfig(yamlConfigPath);
             }
@@ -55,7 +58,8 @@ public class DirectoryToExcel {
 
     private static boolean shouldExclude(File file, List<String> excludeDirectoryPatterns, List<String> excludeFilePatterns) {
         for (String excludeDirectoryPattern : excludeDirectoryPatterns) {
-            if (file.isDirectory() && !excludeDirectoryPattern.isEmpty() && file.getAbsolutePath().matches(excludeDirectoryPattern)) {
+            if (file.isDirectory() && !excludeDirectoryPattern.isEmpty() && file.getAbsolutePath()
+                    .matches(excludeDirectoryPattern)) {
                 return true;
             }
         }
@@ -111,43 +115,31 @@ public class DirectoryToExcel {
             return rowNum;
         }
 
-        boolean hasFileWithSpecifiedExtension = false;
-        for (File file : directory.listFiles()) {
-            if (config != null && shouldExclude(file, config.getExcludeDirectoryPatterns(), config.getExcludeFilePatterns())) {
-                continue;
-            }
+        boolean shouldIncludeDirectory = shouldIncludeDirectory(directory);
 
-            if (file.isFile()) {
-                String extension = getFileExtension(file);
-                if (config != null && config.getFileExtensionFilters().contains(extension)) {
-                    hasFileWithSpecifiedExtension = true;
-                }
-            } else if (file.isDirectory()) {
-                int subRowNum = writeDirectoryToExcel(file, sheet, rowNum, colNum + 1, baseDir, workbook);
-                if (subRowNum > rowNum) {
-                    hasFileWithSpecifiedExtension = true;
-                }
-            }
-        }
-
-        if (!hasFileWithSpecifiedExtension) {
+        if (shouldIncludeDirectory) {
+            Row row = sheet.createRow(rowNum++);
+            Cell cell = row.createCell(colNum);
+            cell.setCellValue(directory.getName());
+        } else {
             return rowNum;
         }
 
-        Row row = sheet.createRow(rowNum++);
-        Cell cell = row.createCell(colNum);
-        cell.setCellValue(directory.getName());
 
-        for (File file : directory.listFiles()) {
-            if (config != null && shouldExclude(file, config.getExcludeDirectoryPatterns(), config.getExcludeFilePatterns())) {
+        for (File file : Objects.requireNonNull(directory.listFiles())) {
+            if (config.getExcludeDirectoryPatterns() != null && shouldExclude(file, config.getExcludeDirectoryPatterns(), config.getExcludeFilePatterns())) {
                 continue;
             }
 
             if (file.isDirectory()) {
                 rowNum = writeDirectoryToExcel(file, sheet, rowNum, colNum + 1, baseDir, workbook);
             } else {
-                String extension = getFileExtension(file);
-                if (config != null && config.getFileExtensionFilters().contains(extension)) {
+                boolean includeFile = true;
+                if (config.getFileExtensionFilters() != null && !config.getFileExtensionFilters().isEmpty()) {
+                    includeFile = config.getFileExtensionFilters().contains(getFileExtension(file));
+                }
+
+                if (includeFile) {
                     Row fileRow = sheet.createRow(rowNum++);
                     Cell fileCell = fileRow.createCell(colNum + 1);
                     fileCell.setCellValue(file.getName());
@@ -165,7 +157,40 @@ public class DirectoryToExcel {
                 }
             }
         }
-
         return rowNum;
+    }
+
+    private boolean shouldIncludeDirectory(File directory) {
+        if (config.getFileExtensionFilters() == null || config.getFileExtensionFilters().isEmpty()) {
+            return true;
+        }
+
+        for (File file : listAllFiles(directory)) {
+            if (!file.isDirectory() && config.getFileExtensionFilters().contains(getFileExtension(file))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
+    private static File[] listAllFiles(File directory) {
+        File[] files = directory.listFiles();
+        if (files == null) {
+            return new File[0];
+        }
+
+        java.util.List<File> result = new java.util.ArrayList<>();
+        for (File file : files) {
+            result.add(file);
+            if (file.isDirectory()) {
+                File[] childFiles = listAllFiles(file);
+                for (File childFile : childFiles) {
+                    result.add(childFile);
+                }
+            }
+        }
+        return result.toArray(new File[0]);
     }
 }
